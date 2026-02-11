@@ -1,0 +1,13 @@
+# Ignore model files
+model/*.pkl
+*.pkl
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
