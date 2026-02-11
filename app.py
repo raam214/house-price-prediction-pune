@@ -1,89 +1,58 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 from sklearn.linear_model import LinearRegression
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="Pune House Price Prediction",
+    page_icon="🏠",
     layout="centered"
 )
 
 st.title("🏠 Pune House Price Prediction")
 st.caption("Predict house prices using location and property details")
 
-# ---------------- HELPERS ----------------
+# ---------------- LOAD & TRAIN MODEL ----------------
 
 
-def convert_sqft(x):
-    try:
-        x = str(x)
-        if '-' in x:
-            a, b = x.split('-')
-            return (float(a) + float(b)) / 2
-        return float(x)
-    except:
-        return np.nan
-
-# ---------------- LOAD & TRAIN ----------------
-
-
-@st.cache_resource
-def load_model():
+@st.cache_data
+def load_data():
     df = pd.read_csv("data/Pune_House_Data.csv")
-
-    # Keep only required columns
-    df = df[["location", "total_sqft", "bhk", "bath", "balcony", "price"]]
-
-    # Clean sqft
-    df["total_sqft"] = df["total_sqft"].apply(convert_sqft)
+    df = df[["location", "total_sqft", "bath", "balcony", "price"]]
     df = df.dropna()
 
-    # One-hot encode location
-    df = pd.get_dummies(df, columns=["location"])
-
-    X = df.drop("price", axis=1).astype(float)
-    y = df["price"].astype(float)
+    X = pd.get_dummies(df.drop("price", axis=1))
+    y = df["price"]
 
     model = LinearRegression()
     model.fit(X, y)
 
-    return model, X.columns
+    return model, X.columns, df
 
 
-model, columns = load_model()
+model, columns, df = load_data()
 
-# ---------------- UI ----------------
-locations = [c.replace("location_", "")
-             for c in columns if c.startswith("location_")]
+# ---------------- USER INPUT ----------------
+location = st.selectbox("📍 Location", sorted(df["location"].unique()))
+sqft = st.number_input("📐 Total Square Feet", min_value=300, value=1000)
+bath = st.number_input("🛁 Bathrooms", min_value=1, value=2)
+balcony = st.number_input("🌿 Balconies", min_value=0, value=1)
 
-location = st.selectbox("📍 Location", locations)
-sqft = st.number_input("📐 Total Square Feet", 300, 10000, 600)
-bhk = st.number_input("🏠 BHK", 1, 10, 2)
-bath = st.number_input("🛁 Bathrooms", 1, 10, 2)
-balcony = st.number_input("🌿 Balconies", 0, 10, 1)
-
-# ---------------- PREDICT ----------------
+# ---------------- PREDICTION ----------------
 if st.button("Predict Price"):
-    x = np.zeros(len(columns))
+    input_df = pd.DataFrame(
+        [[location, sqft, bath, balcony]],
+        columns=["location", "total_sqft", "bath", "balcony"]
+    )
 
-    x[columns.get_loc("total_sqft")] = sqft
-    x[columns.get_loc("bhk")] = bhk
-    x[columns.get_loc("bath")] = bath
-    x[columns.get_loc("balcony")] = balcony
+    input_df = pd.get_dummies(input_df)
 
-    loc_col = f"location_{location}"
-    if loc_col in columns:
-        x[columns.get_loc(loc_col)] = 1
+    input_df = input_df.reindex(columns=columns, fill_value=0)
 
-    price = model.predict([x])[0]
-    st.success(f"💰 Estimated Price: ₹ {round(price, 2)} Lakhs")
+    prediction = model.predict(input_df)[0]
+
+    st.success(f"💰 Estimated Price: ₹ {round(prediction, 2)} Lakhs")
 
 # ---------------- FOOTER ----------------
 st.markdown("---")
-st.markdown(
-    "<div style='text-align:center;color:gray;'>"
-    "End-to-End Machine Learning Project | Developed by Raam214"
-    "</div>",
-    unsafe_allow_html=True
-)
+st.caption("Built with Streamlit & Scikit-learn | Project by Raam214")
